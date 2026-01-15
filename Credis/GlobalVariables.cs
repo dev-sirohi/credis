@@ -6,8 +6,9 @@ namespace Credis
 {
     internal static class GlobalVariables
     {
-        public static bool IsInitialized { get; private set;  }
+        public static bool IsInitialized { get; private set; }
         public static Encoding Encoding { get; private set; } = Encoding.UTF8;
+        public const int MaxBufferSize = 8192;
 
         public static void Initialize(Encoding encoding)
         {

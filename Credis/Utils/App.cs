@@ -10,8 +10,8 @@ namespace Credis.Utils
         {
             internal enum Env
             {
-                TEST = 0,
-                PROD = 1,
+                TEST,
+                PROD,
             }
 
             internal static class Terminal
@@ -38,6 +38,9 @@ namespace Credis.Utils
                 public const string INVALID_IP_ADDRESS = "Invalid Ip address";
                 public const string INVALID_PORT = "Invalid port";
                 public const string INVALID_HOSTNAME = "Invalid hostname";
+                public const string BUFFER_SIZE_OUT_OF_BOUNDS = "Buffer size out of bounds. Max supported buffer size: {0}B";
+                public const string CANCELLATION_REQUESTED = "{0}:Process terminated. Cancellation requested. Server shutting down.";
+                public const string APPLICATION_ERROR = "Unknown application error. Please try again after some time.";
             }
 
             internal static class OutgoingText

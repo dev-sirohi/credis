@@ -35,8 +35,7 @@
                     public const char ATTRIBUTE = '|';
                     public const char SET = '~';
                     public const char PUSH = '>';
-
-                    public const char VERBATIM_STRING = '=';
+                    public const char VERBATIM = '=';
                 }
 
                 internal static class Error

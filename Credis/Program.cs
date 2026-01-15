@@ -2,11 +2,11 @@
 using Credis.Utils;
 using System.Text;
 
-var server = new Server(true);
-server.Env = App.Constants.Env.TEST; // Test server
-
 var cancellationTokenSource = new CancellationTokenSource();
 var cancellationToken = cancellationTokenSource.Token;
+
+var server = new Server(cancellationToken);
+server.Env = App.Constants.Env.TEST; // Test server
 
 Console.WriteLine("===Welcome to Credis===");
 Console.WriteLine("===Server config===");
@@ -22,8 +22,7 @@ Console.WriteLine("Port: " + server.Port);
 
 Console.WriteLine(App.Constants.Terminal.Text.LOOP_BASIC);
 
-bool sessionKeepAlive = true;
-while (sessionKeepAlive)
+while (!cancellationToken.IsCancellationRequested)
 {
     string? userInput = Console.ReadLine();
     if (!string.IsNullOrWhiteSpace(userInput))
@@ -34,7 +33,7 @@ while (sessionKeepAlive)
                 try
                 {
                     GlobalVariables.Initialize(Encoding.UTF8);
-                    await server.Initialize(cancellationToken);
+                    await server.InitializeAsync();
                     Console.WriteLine($"{App.Constants.Terminal.Text.SERVER_INITIALIZED}{server.IpAddress}:{server.Port}");
                 }
                 catch (Exception ex)
@@ -63,12 +62,13 @@ while (sessionKeepAlive)
                 break;
             case "n":
             case "exit":
-                sessionKeepAlive = false;
+                cancellationTokenSource.Cancel();
                 break;
             case "change config":
                 break;
             default:
                 Console.WriteLine(App.Constants.Terminal.Text.INVALID_INPUT);
+
                 return;
         }
     }

@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
+using System.Runtime.CompilerServices;
 using System.Text;
 using Credis.Utils;
 
@@ -11,7 +12,7 @@ namespace Credis
     {
         private IPAddress _ipAddr;
         private int _port;
-        private bool _keepAlive = true;
+        private CancellationToken _cancellationToken = CancellationToken.None;
 
         public App.Constants.Env Env { get; set; } = App.Constants.Env.TEST;
         public string IpAddress
@@ -22,8 +23,11 @@ namespace Credis
         {
             get => _port;
         }
-        
-        public Server(IPAddress ipAddr, int port, bool keepAlive = true)
+
+        public Server(
+            IPAddress ipAddr,
+            int port,
+            CancellationToken cancellationToken)
         {
             if (ipAddr == null)
             {
@@ -36,10 +40,13 @@ namespace Credis
 
             _ipAddr = ipAddr;
             _port = port;
-            _keepAlive = keepAlive;
+            _cancellationToken = cancellationToken;
         }
 
-        public Server(string hostName, int port = 6379, bool keepAlive = true)
+        public Server(
+            string hostName,
+            int port,
+            CancellationToken cancellationToken)
         {
             if (string.IsNullOrWhiteSpace(hostName))
             {
@@ -52,21 +59,21 @@ namespace Credis
 
             _ipAddr = Dns.GetHostAddresses(hostName).First(x => x != null);
             _port = port;
-            _keepAlive = keepAlive;
+            _cancellationToken = cancellationToken;
         }
 
-        public Server(bool keepAlive = false)
+        public Server(CancellationToken cancellationToken)
         {
             _ipAddr = Dns.GetHostAddresses(Dns.GetHostName()).First(x => x != null);
             _port = 6397;
-            _keepAlive = keepAlive;
+            _cancellationToken = cancellationToken;
         }
 
         /*
             Public methods 
         */
 
-        public async Task Initialize(CancellationToken cancellationToken)
+        public async Task InitializeAsync()
         {
             if (_ipAddr == null)
             {
@@ -83,32 +90,39 @@ namespace Credis
 
                 using (var listener = new TcpListener(ipEndPoint))
                 {
-                    listener.Start();
+                    listener.Start(); // Starts queueing requests
 
-                    while (_keepAlive)
+                    while (true)
                     {
-                        using (var handler = await listener.AcceptTcpClientAsync())
+                        _cancellationToken.ThrowIfCancellationRequested();
+                        using (var client = await listener.AcceptTcpClientAsync(_cancellationToken))
                         {
-                            // Use clientHashCode for rate-limiting
-                            var clientHashCode = handler.Client.RemoteEndPoint?.GetHashCode();
-                            await using (var stream = handler.GetStream())
-                            {
-                                if (stream.CanRead)
-                                {
-                                    var outputBuffer = new Memory<byte>();
-                                    await new Processor(this).ProcessRequest(stream, outputBuffer, cancellationToken);
-                                    await stream.WriteAsync(outputBuffer);
-                                }
-                            }
+                            _ = HandleClientRequestAsync(client);
                         }
                     }
-
-                    listener.Stop();
                 }
+            }
+            catch (OperationCanceledException e) when (e.CancellationToken == _cancellationToken)
+            {
+                Console.WriteLine(string.Format(App.Constants.ExceptionText.CANCELLATION_REQUESTED, DateTime.UtcNow));
             }
             catch (Exception ex)
             {
-                throw new ApplicationException(ex.Message);
+                _ = Logger.Instance.WriteAsync(ex);
+            }
+        }
+
+        /*
+            Private methods
+        */
+
+        private async Task HandleClientRequestAsync(TcpClient client)
+        {
+            await using (var stream = client.GetStream())
+            {
+                var outputBuffer = new Memory<byte>(new byte[GlobalVariables.MaxBufferSize]);
+                await new Processor(this, stream, outputBuffer, _cancellationToken).InitializeAsync();
+                await stream.WriteAsync(outputBuffer, _cancellationToken);
             }
         }
     }
