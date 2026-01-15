@@ -28,7 +28,7 @@ namespace Credis
             switch (stream.ReadByte())
             {
                 case ((byte)Protocol.Lexicon.Readable.Simple.STRING):
-                    await ProcessString(stream, outputBuffer, cancellationToken);
+                    await ProcessSimpleString(stream, outputBuffer, cancellationToken);
                     break;
                 default:
                     var inputBuffer = new Memory<byte>();
@@ -45,7 +45,7 @@ namespace Credis
             }
         }
 
-        public async Task ProcessString(NetworkStream stream, Memory<byte> outputBuffer, CancellationToken cancellationToken)
+        public async Task ProcessSimpleString(NetworkStream stream, Memory<byte> outputBuffer, CancellationToken cancellationToken)
         {
 
         }

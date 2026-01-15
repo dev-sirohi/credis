@@ -34,7 +34,7 @@ while (sessionKeepAlive)
                 try
                 {
                     GlobalVariables.Initialize(Encoding.UTF8);
-                    await server.Init(cancellationToken);
+                    await server.Initialize(cancellationToken);
                     Console.WriteLine($"{App.Constants.Terminal.Text.SERVER_INITIALIZED}{server.IpAddress}:{server.Port}");
                 }
                 catch (Exception ex)

@@ -66,7 +66,7 @@ namespace Credis
             Public methods 
         */
 
-        public async Task Init(CancellationToken cancellationToken)
+        public async Task Initialize(CancellationToken cancellationToken)
         {
             if (_ipAddr == null)
             {
@@ -89,6 +89,8 @@ namespace Credis
                     {
                         using (var handler = await listener.AcceptTcpClientAsync())
                         {
+                            // Use clientHashCode for rate-limiting
+                            var clientHashCode = handler.Client.RemoteEndPoint?.GetHashCode();
                             await using (var stream = handler.GetStream())
                             {
                                 if (stream.CanRead)
@@ -96,7 +98,7 @@ namespace Credis
                                     var outputBuffer = new Memory<byte>();
                                     await new Processor(this).ProcessRequest(stream, outputBuffer, cancellationToken);
                                     await stream.WriteAsync(outputBuffer);
-                                }                               
+                                }
                             }
                         }
                     }
