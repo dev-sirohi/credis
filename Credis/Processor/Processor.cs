@@ -5,7 +5,7 @@ namespace Credis;
 
 internal sealed class Processor
 {
-    private readonly CancellationToken _cancellationToken = CancellationToken.None;
+    private readonly CancellationToken _cancellationToken;
     private          Memory<byte>      _outputBuffer;
     private readonly Server?           _serverInstance;
     private readonly NetworkStream     _stream;
