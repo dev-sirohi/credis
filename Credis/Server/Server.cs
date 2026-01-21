@@ -1,129 +1,102 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Net;
+﻿using System.Net;
 using System.Net.Sockets;
-using System.Runtime.CompilerServices;
-using System.Text;
 using Credis.Utils;
 
-namespace Credis
+namespace Credis;
+
+internal class Server
 {
-    internal class Server
+    private readonly CancellationToken _cancellationToken = CancellationToken.None;
+    private readonly IPAddress         _ipAddr;
+
+    public Server(
+        IPAddress ipAddr,
+        int port,
+        CancellationToken cancellationToken)
     {
-        private IPAddress _ipAddr;
-        private int _port;
-        private CancellationToken _cancellationToken = CancellationToken.None;
+        if (ipAddr == null) throw new ArgumentNullException(App.Constants.ExceptionText.INVALID_IP_ADDRESS);
+        if (port   == default) throw new ArgumentNullException(App.Constants.ExceptionText.INVALID_PORT);
 
-        public App.Constants.Env Env { get; set; } = App.Constants.Env.TEST;
-        public string IpAddress
+        _ipAddr            = ipAddr;
+        Port               = port;
+        _cancellationToken = cancellationToken;
+    }
+
+    public Server(
+        string hostName,
+        int port,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(hostName))
+            throw new ArgumentNullException(App.Constants.ExceptionText.INVALID_HOSTNAME);
+        if (port == default) throw new ArgumentNullException(App.Constants.ExceptionText.INVALID_PORT);
+
+        _ipAddr            = Dns.GetHostAddresses(hostName).First(x => x != null);
+        Port               = port;
+        _cancellationToken = cancellationToken;
+    }
+
+    public Server(CancellationToken cancellationToken)
+    {
+        _ipAddr            = Dns.GetHostAddresses(Dns.GetHostName()).First(x => x != null);
+        Port               = 6397;
+        _cancellationToken = cancellationToken;
+    }
+
+    public App.Constants.Env Env { get; set; } = App.Constants.Env.TEST;
+
+    public string IpAddress => _ipAddr.ToString();
+
+    public int Port { get; }
+
+    /*
+        Public methods
+    */
+
+    public async Task InitializeAsync()
+    {
+        if (_ipAddr == null) throw new ArgumentNullException(App.Constants.ExceptionText.INVALID_IP_ADDRESS);
+        if (Port    == default) throw new ArgumentNullException(App.Constants.ExceptionText.INVALID_PORT);
+
+        try
         {
-            get => _ipAddr.ToString();
-        }
-        public int Port
-        {
-            get => _port;
-        }
+            var ipEndPoint = new IPEndPoint(_ipAddr, Port);
 
-        public Server(
-            IPAddress ipAddr,
-            int port,
-            CancellationToken cancellationToken)
-        {
-            if (ipAddr == null)
+            using (var listener = new TcpListener(ipEndPoint))
             {
-                throw new ArgumentNullException(App.Constants.ExceptionText.INVALID_IP_ADDRESS);
-            }
-            if (port == default(int))
-            {
-                throw new ArgumentNullException(App.Constants.ExceptionText.INVALID_PORT);
-            }
+                listener.Start(); // Starts queueing requests
 
-            _ipAddr = ipAddr;
-            _port = port;
-            _cancellationToken = cancellationToken;
-        }
-
-        public Server(
-            string hostName,
-            int port,
-            CancellationToken cancellationToken)
-        {
-            if (string.IsNullOrWhiteSpace(hostName))
-            {
-                throw new ArgumentNullException(App.Constants.ExceptionText.INVALID_HOSTNAME);
-            }
-            if (port == default(int))
-            {
-                throw new ArgumentNullException(App.Constants.ExceptionText.INVALID_PORT);
-            }
-
-            _ipAddr = Dns.GetHostAddresses(hostName).First(x => x != null);
-            _port = port;
-            _cancellationToken = cancellationToken;
-        }
-
-        public Server(CancellationToken cancellationToken)
-        {
-            _ipAddr = Dns.GetHostAddresses(Dns.GetHostName()).First(x => x != null);
-            _port = 6397;
-            _cancellationToken = cancellationToken;
-        }
-
-        /*
-            Public methods 
-        */
-
-        public async Task InitializeAsync()
-        {
-            if (_ipAddr == null)
-            {
-                throw new ArgumentNullException(App.Constants.ExceptionText.INVALID_IP_ADDRESS);
-            }
-            if (_port == default(int))
-            {
-                throw new ArgumentNullException(App.Constants.ExceptionText.INVALID_PORT);
-            }
-
-            try
-            {
-                IPEndPoint ipEndPoint = new IPEndPoint(_ipAddr, _port);
-
-                using (var listener = new TcpListener(ipEndPoint))
+                while (true)
                 {
-                    listener.Start(); // Starts queueing requests
-
-                    while (true)
+                    _cancellationToken.ThrowIfCancellationRequested();
+                    using (var client = await listener.AcceptTcpClientAsync(_cancellationToken))
                     {
-                        _cancellationToken.ThrowIfCancellationRequested();
-                        using (var client = await listener.AcceptTcpClientAsync(_cancellationToken))
-                        {
-                            _ = HandleClientRequestAsync(client);
-                        }
+                        _ = HandleClientRequestAsync(client);
                     }
                 }
             }
-            catch (OperationCanceledException e) when (e.CancellationToken == _cancellationToken)
-            {
-                Console.WriteLine(string.Format(App.Constants.ExceptionText.CANCELLATION_REQUESTED, DateTime.UtcNow));
-            }
-            catch (Exception ex)
-            {
-                _ = Logger.Instance.WriteAsync(ex);
-            }
         }
-
-        /*
-            Private methods
-        */
-
-        private async Task HandleClientRequestAsync(TcpClient client)
+        catch (OperationCanceledException e) when (e.CancellationToken == _cancellationToken)
         {
-            await using (var stream = client.GetStream())
-            {
-                var outputBuffer = new Memory<byte>(new byte[GlobalVariables.MaxBufferSize]);
-                await new Processor(this, stream, outputBuffer, _cancellationToken).InitializeAsync();
-                await stream.WriteAsync(outputBuffer, _cancellationToken);
-            }
+            Console.WriteLine(App.Constants.ExceptionText.CANCELLATION_REQUESTED, DateTime.UtcNow);
+        }
+        catch (Exception ex)
+        {
+            _ = Logger.Instance.WriteAsync(ex);
+        }
+    }
+
+    /*
+        Private methods
+    */
+
+    private async Task HandleClientRequestAsync(TcpClient client)
+    {
+        await using (var stream = client.GetStream())
+        {
+            var outputBuffer = new Memory<byte>(new byte[GlobalVariables.MaxBufferSize]);
+            await new Processor(this, stream, outputBuffer, _cancellationToken).InitializeAsync();
+            await stream.WriteAsync(outputBuffer, _cancellationToken);
         }
     }
 }
