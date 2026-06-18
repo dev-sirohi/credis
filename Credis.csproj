@@ -1,0 +1,26 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
+    <DockerfileContext>.</DockerfileContext>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.23.0" />
+  </ItemGroup>
+
+  <!--
+    Test.cs and HttpClient.cs are standalone, single-file client scripts that each
+    carry their own entry point. They are run with "dotnet run <file>.cs" and must be
+    kept out of the server build so the project keeps exactly one Main (Program.cs).
+  -->
+  <ItemGroup>
+    <Compile Remove="Test.cs" />
+    <Compile Remove="HttpClient.cs" />
+  </ItemGroup>
+
+</Project>
